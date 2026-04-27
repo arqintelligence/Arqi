@@ -847,8 +847,8 @@
     }
     .story-title {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      font-size: clamp(2.4rem, 5vw, 4.4rem);
-      font-weight: 400;
+      font-size: clamp(1.5rem, 3vw, 2.6rem);
+      font-weight: 500;
       line-height: 1.05;
       color: var(--vanilla);
       text-shadow: 0 2px 28px rgba(0,0,0,0.35);
@@ -1573,7 +1573,7 @@
     }
     .story-hero-info { left: 6vw; right: 6vw; bottom: 6vh; }
     .story-eyebrow { color: rgba(241,234,218,0.78); }
-    .story-title { font-size: clamp(2.4rem, 6vw, 5rem); margin-bottom: 1rem; line-height: 1; }
+    .story-title { font-size: clamp(1.5rem, 3.2vw, 2.8rem); margin-bottom: 1rem; line-height: 1.15; }
     .story-loc { color: rgba(241,234,218,0.78); }
 
     /* meta bar — info clave, full width estática (sin sticky) */
@@ -2181,9 +2181,14 @@
       padding-top: 1.6rem;
       padding-bottom: 1.05rem;
     }
-    /* el label viene DESPUÉS del input en el DOM original — arreglamos visualmente con orden */
-    .contact-form .fg { display: flex; flex-direction: column-reverse; }
-    .contact-form .fg .fg-err { order: 99; margin-top: 0.4rem; }
+    /* layout: input arriba (con label flotante absoluto encima), error abajo */
+    .contact-form .fg { display: flex; flex-direction: column; }
+    .contact-form .fg .fg-err {
+      margin-top: 0.4rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.06em;
+      line-height: 1.3;
+    }
 
     .contact-form .fg input:focus,
     .contact-form .fg select:focus,
@@ -2425,9 +2430,10 @@
         <label for="email">Email *</label>
         <span class="fg-err">Por favor ingresá un email válido.</span>
       </div>
-      <div class="fg">
-        <input type="tel" id="tel" placeholder="+54 11 ..." />
-        <label for="tel">Teléfono</label>
+      <div class="fg" id="fg-tel">
+        <input type="tel" id="tel" placeholder="+54 11 ..." required />
+        <label for="tel">Teléfono *</label>
+        <span class="fg-err">Por favor ingresá tu teléfono.</span>
       </div>
       <div class="fg" id="fg-tipo">
         <select id="tipo">
@@ -2829,7 +2835,7 @@ function vf(inputId, groupId) {
 }
 document.getElementById('contact-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const ok = [vf('nombre','fg-nombre'), vf('apellido','fg-apellido'), vf('email','fg-email'), vf('tipo','fg-tipo'), vf('mensaje','fg-mensaje')];
+  const ok = [vf('nombre','fg-nombre'), vf('apellido','fg-apellido'), vf('email','fg-email'), vf('tel','fg-tel'), vf('tipo','fg-tipo'), vf('mensaje','fg-mensaje')];
   if (ok.includes(false)) return;
 
   const v = id => document.getElementById(id).value.trim();
@@ -2846,7 +2852,7 @@ document.getElementById('contact-form').addEventListener('submit', async e => {
     nombre: v('nombre'),
     apellido: v('apellido'),
     email: v('email'),
-    telefono: v('tel') || '—',
+    telefono: v('tel'),
     tipo_proyecto: v('tipo'),
     superficie: v('m2') || '—',
     mensaje: v('mensaje'),
@@ -2874,7 +2880,7 @@ document.getElementById('contact-form').addEventListener('submit', async e => {
     btn.disabled = false; btn.textContent = originalBtnText;
   }
 });
-['nombre','apellido','email','tipo','mensaje'].forEach(id => {
+['nombre','apellido','email','tel','tipo','mensaje'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('blur', () => vf(id, 'fg-' + id));
 });
@@ -3193,7 +3199,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
         <input type="text" name="apellido" placeholder="Apellido*" value="${escapeAttr(a._apellido || '')}" required/>
         <div class="wiz-form-row">
           <div class="wiz-flag">+54</div>
-          <input type="tel" name="telefono" placeholder="Teléfono / WhatsApp" value="${escapeAttr(a._telefono || '')}"/>
+          <input type="tel" name="telefono" placeholder="Teléfono / WhatsApp*" value="${escapeAttr(a._telefono || '')}" required/>
         </div>
         <input type="email" name="email" placeholder="Email*" value="${escapeAttr(a._email || '')}" required/>
         <input type="text" name="ubicacion" placeholder="${step.context === 'comercial' ? '¿Dónde se encuentra/encontraría tu local?*' : '¿De qué ciudad/localidad sos?*'}" value="${escapeAttr(a._ubicacion || '')}" required/>
@@ -3287,6 +3293,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
     if (step.kind === 'form') {
       return !!answers._nombre && !!answers._apellido
           && !!answers._email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(answers._email || '')
+          && !!answers._telefono
           && !!answers._ubicacion;
     }
     return true;
