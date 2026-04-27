@@ -1723,9 +1723,21 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
       transform: scale(0.96);
       transition: transform 0.4s cubic-bezier(0.22,0.61,0.36,1);
-      cursor: zoom-out;
+      cursor: zoom-in;
+      user-select: none;
+      -webkit-user-drag: none;
+      -webkit-user-select: none;
     }
     .lightbox.open .lightbox-img { transform: scale(1); }
+    .lightbox.open .lightbox-img.zoomed {
+      cursor: grab;
+      transition: transform 0.25s cubic-bezier(0.22,0.61,0.36,1);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+    }
+    .lightbox.open .lightbox-img.zoomed.dragging {
+      cursor: grabbing;
+      transition: none;
+    }
     .lightbox-close,
     .lightbox-prev,
     .lightbox-next {
@@ -3686,6 +3698,28 @@ window.arqTrack = function (eventName, props) {
   let lbList = [];   // urls de fotos del proyecto actual
   let lbIdx  = 0;
 
+  // estado de zoom dentro del lightbox
+  const ZOOM_SCALE = 2.5;
+  let zoomState = { zoomed: false, originX: 50, originY: 50, panX: 0, panY: 0, dragging: false, didDrag: false, startMX: 0, startMY: 0 };
+
+  function applyZoomTransform() {
+    if (!lbImg) return;
+    if (zoomState.zoomed) {
+      lbImg.style.transformOrigin = `${zoomState.originX}% ${zoomState.originY}%`;
+      lbImg.style.transform = `scale(${ZOOM_SCALE}) translate(${zoomState.panX}px, ${zoomState.panY}px)`;
+    } else {
+      lbImg.style.transformOrigin = '';
+      lbImg.style.transform = '';
+    }
+  }
+  function resetZoom() {
+    zoomState.zoomed = false;
+    zoomState.panX = 0;
+    zoomState.panY = 0;
+    if (lbImg) lbImg.classList.remove('zoomed', 'dragging');
+    applyZoomTransform();
+  }
+
   function lbOpen(list, startIdx) {
     if (!list || !list.length) return;
     lbList = list;
@@ -3695,6 +3729,7 @@ window.arqTrack = function (eventName, props) {
     document.body.style.overflow = 'hidden';
   }
   function lbCloseFn() {
+    resetZoom();
     lb.classList.remove('open');
     // restaurar overflow solo si el modal de proyecto NO está abierto
     if (!document.body.classList.contains('modal-open')) {
@@ -3702,6 +3737,7 @@ window.arqTrack = function (eventName, props) {
     }
   }
   function lbRender() {
+    resetZoom();
     lbImg.src = lbList[lbIdx];
     lbCounter.textContent = String(lbIdx + 1).padStart(2, '0') + ' / ' + String(lbList.length).padStart(2, '0');
     // preload vecinos
@@ -3714,10 +3750,52 @@ window.arqTrack = function (eventName, props) {
   function lbPrevFn() { lbIdx = (lbIdx - 1 + lbList.length) % lbList.length; lbRender(); }
 
   if (lbClose) lbClose.addEventListener('click', lbCloseFn);
-  if (lbPrev)  lbPrev.addEventListener('click', lbPrevFn);
-  if (lbNext)  lbNext.addEventListener('click', lbNextFn);
+  if (lbPrev)  lbPrev.addEventListener('click', e => { e.stopPropagation(); lbPrevFn(); });
+  if (lbNext)  lbNext.addEventListener('click', e => { e.stopPropagation(); lbNextFn(); });
   if (lb) lb.addEventListener('click', e => { if (e.target === lb) lbCloseFn(); });
-  if (lbImg) lbImg.addEventListener('click', lbCloseFn);
+
+  // click sobre la imagen → toggle zoom (centrado en el punto del click)
+  if (lbImg) {
+    lbImg.addEventListener('click', e => {
+      e.stopPropagation();
+      if (zoomState.didDrag) { zoomState.didDrag = false; return; }
+      if (!zoomState.zoomed) {
+        const r = lbImg.getBoundingClientRect();
+        zoomState.originX = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+        zoomState.originY = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+        zoomState.zoomed = true;
+        zoomState.panX = 0; zoomState.panY = 0;
+        lbImg.classList.add('zoomed');
+        applyZoomTransform();
+      } else {
+        resetZoom();
+      }
+    });
+    // drag-to-pan cuando está zoomeado
+    lbImg.addEventListener('mousedown', e => {
+      if (!zoomState.zoomed) return;
+      e.preventDefault();
+      zoomState.dragging = true;
+      zoomState.didDrag = false;
+      zoomState.startMX = e.clientX - zoomState.panX * ZOOM_SCALE;
+      zoomState.startMY = e.clientY - zoomState.panY * ZOOM_SCALE;
+      lbImg.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!zoomState.dragging) return;
+      const dx = e.clientX - zoomState.startMX;
+      const dy = e.clientY - zoomState.startMY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) zoomState.didDrag = true;
+      zoomState.panX = dx / ZOOM_SCALE;
+      zoomState.panY = dy / ZOOM_SCALE;
+      applyZoomTransform();
+    });
+    window.addEventListener('mouseup', () => {
+      if (!zoomState.dragging) return;
+      zoomState.dragging = false;
+      if (lbImg) lbImg.classList.remove('dragging');
+    });
+  }
 
   document.addEventListener('keydown', e => {
     if (!lb.classList.contains('open')) return;
