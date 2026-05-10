@@ -993,6 +993,11 @@
       .proj-header-intro p { max-width: none; letter-spacing: 0.02em; }
       .mobile-menu { justify-content: flex-start; padding-top: 120px; gap: 1.2rem; }
       .mobile-menu a { font-size: 1.4rem; }
+      /* prevent iOS auto-zoom on input focus: requires font-size >= 16px */
+      .fg input, .fg select, .fg textarea,
+      .contact-form .fg input, .contact-form .fg select, .contact-form .fg textarea,
+      .wiz-form input, .wiz-form textarea, .wiz-form select,
+      .wiz-input-wrap input, .wiz-card-select { font-size: 16px; }
     }
     @media (max-width: 480px) {
       .steps-row { grid-template-columns: 1fr; }
