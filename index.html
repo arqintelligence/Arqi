@@ -251,11 +251,14 @@
     .hamburger {
       display: none;
       flex-direction: column;
+      justify-content: center;
       gap: 5px;
       cursor: pointer;
       background: none;
       border: none;
-      padding: 4px;
+      padding: 12px;
+      min-width: 44px;
+      min-height: 44px;
     }
     .hamburger span {
       display: block; width: 22px; height: 1.5px;
@@ -294,6 +297,7 @@
     #hero {
       position: relative;
       height: 100vh;
+      height: 100dvh;
       min-height: 640px;
       display: flex;
       align-items: center;
@@ -813,7 +817,7 @@
     }
     .story-close:hover { background: #0f0c09; transform: scale(1.08); }
 
-    .story-body { min-height: 100vh; }
+    .story-body { min-height: 100vh; min-height: 100dvh; }
     .story-hero {
       width: 100%;
       height: 92vh;
@@ -908,8 +912,9 @@
     }
     .story-photo {
       width: 100%;
-      background-size: cover;
-      background-position: center;
+      height: auto;
+      display: block;
+      object-fit: cover;
       background-color: #1c1510;
       aspect-ratio: 4/3;
       transition: transform 0.5s ease, filter 0.4s ease;
@@ -956,7 +961,8 @@
     }
 
     /* ══ FLOAT BUTTONS ══ */
-    .float-btns { position: fixed; bottom: 1.75rem; right: 1.75rem; display: flex; flex-direction: column; gap: 0.6rem; z-index: 900; }
+    .float-btns { position: fixed; bottom: 1.75rem; right: 1.75rem; display: flex; flex-direction: column; gap: 0.6rem; z-index: 900; transition: bottom 0.3s ease; }
+    body.has-mob-cta .float-btns { bottom: calc(4.5rem + 1rem + env(safe-area-inset-bottom)); }
     .float-btn {
       width: 48px; height: 48px; border-radius: 50%; border: none;
       display: flex; align-items: center; justify-content: center;
@@ -1078,6 +1084,7 @@
       margin: 0 auto;
       padding: 5.5rem 5vw 5rem;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
     }
@@ -2831,7 +2838,7 @@ function renderStory() {
     <div class="story-desc"><p>${p.desc}</p></div>
     <div class="story-gallery">
       ${restPhotos.map(ph => `
-        <div class="story-photo" style="background-image:url('${enc(`${p.folder}/${ph}`)}')"></div>
+        <img class="story-photo" loading="lazy" decoding="async" src="${enc(`${p.folder}/${ph}`)}" alt="" />
       `).join('')}
     </div>
     <div class="story-nav">
@@ -3736,6 +3743,7 @@ window.arqTrack = function (eventName, props) {
     zoomState.panX = 0;
     zoomState.panY = 0;
     if (lbImg) lbImg.classList.remove('zoomed', 'dragging');
+    if (window._lbResetPinch) window._lbResetPinch();
     applyZoomTransform();
   }
 
@@ -3829,22 +3837,88 @@ window.arqTrack = function (eventName, props) {
     if (!photo) return;
     const gallery = photo.parentElement;
     if (!gallery || !gallery.classList.contains('story-gallery')) return;
-    // construir lista de urls a partir de los background-image de cada .story-photo
+    // construir lista de urls a partir de los src de cada .story-photo (img)
     const all = Array.from(gallery.querySelectorAll('.story-photo'));
-    const urls = all.map(el => {
-      const bg = el.style.backgroundImage || '';
-      const m = bg.match(/url\(["']?(.+?)["']?\)/);
-      return m ? m[1] : '';
-    }).filter(Boolean);
+    const urls = all.map(el => el.currentSrc || el.src || '').filter(Boolean);
     const idx = all.indexOf(photo);
     lbOpen(urls, idx);
   });
 
-  // touch swipe en lightbox
-  if (lb && isCoarse) {
+  // touch: swipe (sin zoom) + pinch-zoom + single-finger pan cuando zoomeado
+  if (lb && isCoarse && lbImg) {
     let sx = 0, sy = 0;
-    lb.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    let pinchInitialDist = 0;
+    let pinchInitialScale = 1;
+    let touchScale = 1; // escala actual desde pinch (multiplica ZOOM_SCALE si zoomState.zoomed)
+    let panStartX = 0, panStartY = 0;
+    let panStartPanX = 0, panStartPanY = 0;
+    let activeTouches = 0;
+
+    function dist(t1, t2) {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.hypot(dx, dy);
+    }
+    function applyTouchTransform() {
+      const scale = (zoomState.zoomed ? ZOOM_SCALE : 1) * touchScale;
+      lbImg.style.transformOrigin = `${zoomState.originX}% ${zoomState.originY}%`;
+      lbImg.style.transform = `scale(${scale}) translate(${zoomState.panX}px, ${zoomState.panY}px)`;
+    }
+
+    lbImg.addEventListener('touchstart', e => {
+      activeTouches = e.touches.length;
+      if (e.touches.length === 2) {
+        // pinch start
+        e.preventDefault();
+        pinchInitialDist = dist(e.touches[0], e.touches[1]);
+        pinchInitialScale = touchScale;
+        const r = lbImg.getBoundingClientRect();
+        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        zoomState.originX = Math.max(0, Math.min(100, ((mx - r.left) / r.width) * 100));
+        zoomState.originY = Math.max(0, Math.min(100, ((my - r.top) / r.height) * 100));
+      } else if (e.touches.length === 1 && (zoomState.zoomed || touchScale > 1.05)) {
+        // pan start
+        panStartX = e.touches[0].clientX;
+        panStartY = e.touches[0].clientY;
+        panStartPanX = zoomState.panX;
+        panStartPanY = zoomState.panY;
+      }
+    }, { passive: false });
+
+    lbImg.addEventListener('touchmove', e => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const d = dist(e.touches[0], e.touches[1]);
+        touchScale = Math.max(1, Math.min(4, pinchInitialScale * (d / pinchInitialDist)));
+        if (touchScale > 1.05 && !zoomState.zoomed) lbImg.classList.add('zoomed');
+        applyTouchTransform();
+      } else if (e.touches.length === 1 && (zoomState.zoomed || touchScale > 1.05)) {
+        e.preventDefault();
+        const scale = (zoomState.zoomed ? ZOOM_SCALE : 1) * touchScale;
+        zoomState.panX = panStartPanX + (e.touches[0].clientX - panStartX) / scale;
+        zoomState.panY = panStartPanY + (e.touches[0].clientY - panStartY) / scale;
+        applyTouchTransform();
+      }
+    }, { passive: false });
+
+    lbImg.addEventListener('touchend', e => {
+      if (e.touches.length === 0 && touchScale <= 1.05 && !zoomState.zoomed) {
+        // reset si soltaron y no quedó zoomeado por click
+        touchScale = 1;
+        lbImg.classList.remove('zoomed');
+        applyZoomTransform();
+      }
+      activeTouches = e.touches.length;
+    });
+
+    // swipe para navegar (solo si NO está zoomeado y NO hay pinch activo)
+    lb.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+    }, { passive: true });
     lb.addEventListener('touchend', e => {
+      if (zoomState.zoomed || touchScale > 1.05) return;
+      if (e.changedTouches.length !== 1) return;
       const dx = e.changedTouches[0].clientX - sx;
       const dy = Math.abs(e.changedTouches[0].clientY - sy);
       if (Math.abs(dx) > 60 && dy < 80) {
@@ -3852,6 +3926,10 @@ window.arqTrack = function (eventName, props) {
         else lbPrevFn();
       }
     }, { passive: true });
+
+    // reset pinch state cuando cambia de imagen
+    const _origReset = resetZoom;
+    window._lbResetPinch = () => { touchScale = 1; };
   }
 
   /* ── Wizard: offer resume on landing if persisted ── */
