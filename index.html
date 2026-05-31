@@ -3597,23 +3597,11 @@ window.arqTrack = function (eventName, props) {
         img.src = enc(`${p.folder}/${p.cover}`);
       });
     }
-    if (_next) window.nextStory = function () { _next(); preloadAround(); injectStoryHero(); };
-    if (_prev) window.prevStory = function () { _prev(); preloadAround(); injectStoryHero(); };
+    if (_next) window.nextStory = function () { _next(); preloadAround(); };
+    if (_prev) window.prevStory = function () { _prev(); preloadAround(); };
     // patch openStory similarly
     const _open = window.openStory;
-    if (_open) window.openStory = function (i) { _open(i); preloadAround(); injectStoryHero(); };
-
-    function injectStoryHero() {
-      const hero = storyEl.querySelector('.story-hero');
-      if (!hero) return;
-      if (!hero.querySelector('.story-counter-hero')) {
-        const c = document.createElement('div');
-        c.className = 'story-counter-hero';
-        const idx = (typeof window.storyIdx === 'number') ? window.storyIdx : 0;
-        c.textContent = String(idx + 1).padStart(2, '0') + ' / ' + String(window.projects.length).padStart(2, '0');
-        hero.appendChild(c);
-      }
-    }
+    if (_open) window.openStory = function (i) { _open(i); preloadAround(); };
 
     // swipe on mobile
     if (isCoarse) {
